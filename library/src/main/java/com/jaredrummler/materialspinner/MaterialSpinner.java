@@ -19,12 +19,15 @@ package com.jaredrummler.materialspinner;
 
 import android.animation.ObjectAnimator;
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.DialogInterface;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
+import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.StateListDrawable;
@@ -37,6 +40,7 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ListAdapter;
@@ -58,7 +62,8 @@ public class MaterialSpinner extends TextView {
   private OnNothingSelectedListener onNothingSelectedListener;
   private OnItemSelectedListener onItemSelectedListener;
   private MaterialSpinnerBaseAdapter adapter;
-  private PopupWindow popupWindow;
+  //private PopupWindow popupWindow;
+  private Dialog popDialog;
   private ListView listView;
   private Drawable arrowDrawable;
   private boolean hideArrow;
@@ -194,16 +199,19 @@ public class MaterialSpinner extends TextView {
       }
     });
 
-    popupWindow = new PopupWindow(context);
-    popupWindow.setContentView(listView);
-    popupWindow.setOutsideTouchable(true);
-    popupWindow.setFocusable(true);
+    popDialog = new Dialog(context);
+    popDialog.setContentView(listView);
+    //popDialog.setOutsideTouchable(true);
+    //popDialog.setFocusable(true);
+
+    //dlgSetPosition(popDialog);
+    //dlgSetLocation(popDialog);
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      popupWindow.setElevation(16);
-      popupWindow.setBackgroundDrawable(Utils.getDrawable(context, R.drawable.ms__drawable));
+      //popDialog.setElevation(16);
+      //popDialog.setBackgroundDrawable(Utils.getDrawable(context, R.drawable.ms__drawable));
     } else {
-      popupWindow.setBackgroundDrawable(Utils.getDrawable(context, R.drawable.ms__drop_down_shadow));
+      //popDialog.setBackgroundDrawable(Utils.getDrawable(context, R.drawable.ms__drop_down_shadow));
     }
 
     if (backgroundColor != Color.WHITE) { // default color is white
@@ -215,9 +223,9 @@ public class MaterialSpinner extends TextView {
       setTextColor(textColor);
     }
 
-    popupWindow.setOnDismissListener(new PopupWindow.OnDismissListener() {
-
-      @Override public void onDismiss() {
+    popDialog.setOnDismissListener(new Dialog.OnDismissListener() {
+      @Override
+      public void onDismiss(DialogInterface dialog) {
         if (nothingSelected && onNothingSelectedListener != null) {
           onNothingSelectedListener.onNothingSelected(MaterialSpinner.this);
         }
@@ -225,12 +233,56 @@ public class MaterialSpinner extends TextView {
           animateArrow(false);
         }
       }
+//      @Override public void onDismiss() {
+//        if (nothingSelected && onNothingSelectedListener != null) {
+//          onNothingSelectedListener.onNothingSelected(MaterialSpinner.this);
+//        }
+//        if (!hideArrow) {
+//          animateArrow(false);
+//        }
+//      }
     });
   }
 
+  protected void dlgSetWidth(Dialog dlg,int width){
+    WindowManager.LayoutParams lp = dlg.getWindow().getAttributes();
+    lp.width =Utils.dp2px(dlg.getContext(),width); //设置宽度
+    dlg.getWindow().setAttributes(lp);
+  }
+
+  protected void dlgSetHight(Dialog dlg,int hight){
+    WindowManager.LayoutParams lp = dlg.getWindow().getAttributes();
+    lp.height = Utils.dp2px(dlg.getContext(),hight); //设置宽度
+    dlg.getWindow().setAttributes(lp);
+  }
+
+  /**
+   * 重新设置Dialog的显示位置
+   */
+  protected void dlgSetPosition(Dialog dlg,int x,int y){
+    Window window = dlg.getWindow();
+    window.setGravity(Gravity.LEFT|Gravity.TOP);
+    WindowManager.LayoutParams lp = window.getAttributes();
+    lp.x = x; // 新位置X坐标
+    lp.y = y; // 新位置Y坐标
+    dlg.onWindowAttributesChanged(lp);
+  }
+
+  protected void dlgSetLocation(Dialog dlg){
+    int[] location = new int[2];
+    Rect out = new Rect();
+    getLocationOnScreen(location);
+    getWindowVisibleDisplayFrame(out);
+    int x = location[0];
+    int y = location[1] - out.top + getHeight();
+    dlgSetPosition(dlg,x,y);
+  }
+
   @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    popupWindow.setWidth(MeasureSpec.getSize(widthMeasureSpec));
-    popupWindow.setHeight(calculatePopupWindowHeight());
+    //popupWindow.setWidth(MeasureSpec.getSize(widthMeasureSpec));
+    //popupWindow.setHeight(calculatePopupWindowHeight());
+    dlgSetWidth(popDialog,MeasureSpec.getSize(widthMeasureSpec));
+    dlgSetHight(popDialog,calculatePopupWindowHeight());
     if (adapter != null) {
       CharSequence currentText = getText();
       String longestItem = currentText.toString();
@@ -251,7 +303,7 @@ public class MaterialSpinner extends TextView {
   @Override public boolean onTouchEvent(@NonNull MotionEvent event) {
     if (event.getAction() == MotionEvent.ACTION_UP) {
       if (isEnabled() && isClickable()) {
-        if (!popupWindow.isShowing()) {
+        if (!popDialog.isShowing()) {
           expand();
         } else {
           collapse();
@@ -279,7 +331,7 @@ public class MaterialSpinner extends TextView {
     } else if (background != null) { // 21+ (RippleDrawable)
       background.setColorFilter(color, PorterDuff.Mode.SRC_IN);
     }
-    popupWindow.getBackground().setColorFilter(color, PorterDuff.Mode.SRC_IN);
+    //popupWindow.getBackground().setColorFilter(color, PorterDuff.Mode.SRC_IN);
   }
 
   @Override public void setTextColor(int color) {
@@ -301,8 +353,8 @@ public class MaterialSpinner extends TextView {
     bundle.putParcelable("state", super.onSaveInstanceState());
     bundle.putInt("selected_index", selectedIndex);
     bundle.putBoolean("nothing_selected", nothingSelected);
-    if (popupWindow != null) {
-      bundle.putBoolean("is_popup_showing", popupWindow.isShowing());
+    if (popDialog != null) {
+      bundle.putBoolean("is_popup_showing", popDialog.isShowing());
       collapse();
     } else {
       bundle.putBoolean("is_popup_showing", false);
@@ -326,7 +378,7 @@ public class MaterialSpinner extends TextView {
         adapter.notifyItemSelected(selectedIndex);
       }
       if (bundle.getBoolean("is_popup_showing")) {
-        if (popupWindow != null) {
+        if (popDialog != null) {
           // Post the show request into the looper to avoid bad token exception
           post(new Runnable() {
 
@@ -460,7 +512,8 @@ public class MaterialSpinner extends TextView {
       setText("");
     }
     if (shouldResetPopupHeight) {
-      popupWindow.setHeight(calculatePopupWindowHeight());
+      //popupWindow.setHeight(calculatePopupWindowHeight());
+      dlgSetHight(popDialog,calculatePopupWindowHeight());
     }
   }
 
@@ -487,7 +540,12 @@ public class MaterialSpinner extends TextView {
         animateArrow(true);
       }
       nothingSelected = true;
-      popupWindow.showAsDropDown(this);
+      if(popDialog!=null){
+          popDialog.show();
+        dlgSetLocation(popDialog);
+      }
+      //popupWindow.showAsDropDown(this);
+      //popDialog.showAsDropDown(this);
     }
   }
 
@@ -498,7 +556,8 @@ public class MaterialSpinner extends TextView {
     if (!hideArrow) {
       animateArrow(false);
     }
-    popupWindow.dismiss();
+    //popupWindow.dismiss();
+    popDialog.dismiss();
   }
 
   /**
@@ -553,7 +612,7 @@ public class MaterialSpinner extends TextView {
    */
   public void setDropdownMaxHeight(int height) {
     popupWindowMaxHeight = height;
-    popupWindow.setHeight(calculatePopupWindowHeight());
+    //popupWindow.setHeight(calculatePopupWindowHeight());
   }
 
   /**
@@ -563,7 +622,8 @@ public class MaterialSpinner extends TextView {
    */
   public void setDropdownHeight(int height) {
     popupWindowHeight = height;
-    popupWindow.setHeight(calculatePopupWindowHeight());
+    dlgSetHight(popDialog,calculatePopupWindowHeight());
+    //popupWindow.setHeight(calculatePopupWindowHeight());
   }
 
   private int calculatePopupWindowHeight() {
@@ -585,12 +645,12 @@ public class MaterialSpinner extends TextView {
   }
 
   /**
-   * Get the {@link PopupWindow}.
+   * Get the {@link Dialog}.
    *
-   * @return The {@link PopupWindow} that is displayed when the view has been clicked.
+   * @return The {@link Dialog} that is displayed when the view has been clicked.
    */
-  public PopupWindow getPopupWindow() {
-    return popupWindow;
+  public Dialog getPopDialog() {
+    return popDialog;
   }
 
   /**
